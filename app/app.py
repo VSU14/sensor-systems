@@ -14,9 +14,9 @@ def process_image(image, lower_bound):
 
     ranges = [
         (lower_bound + k, 120, (0, 0, 0)) for k in range(0, 120 - lower_bound, 2)
-    ]
+    ][::-1]
 
-    total_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+    total_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)    
     for min_hue, max_hue, color in ranges:
         lower = np.array([min_hue, min_saturation, min_value])
         upper = np.array([max_hue, 255, 255])
@@ -28,7 +28,7 @@ def process_image(image, lower_bound):
         total_mask = cv2.bitwise_or(total_mask, mask)
 
         # Поиск контуров для текущей маски
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(total_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         # Нарисуем центры найденных областей с соответствующим цветом
         for contour in contours:
