@@ -57,7 +57,7 @@ def main():
         image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         
         # Отображаем изображение
-        st.image(image, caption="Исходное изображение", use_container_width=True)
+        st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), caption="Исходное изображение", use_container_width=True)
 
         # Вводим порог для яркости
         threshold = st.slider("Порог яркости (чем ниже, тем больше точек)", min_value=0, max_value=119, step=1)
