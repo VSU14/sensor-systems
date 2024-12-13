@@ -9,15 +9,14 @@ def process_image(image, lower_bound):
     # Преобразование изображения в HSV
     hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
     
-    min_saturation = 100
-    min_value = 50  
-
-    total_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+    min_saturation = 0
+    min_value = 0  
 
     ranges = [
-        (lower_bound, 120, (0, 0, 0))
+        (lower_bound + k, 120, (0, 0, 0)) for k in range(0, 120 - lower_bound, 2)
     ]
 
+    total_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
     for min_hue, max_hue, color in ranges:
         lower = np.array([min_hue, min_saturation, min_value])
         upper = np.array([max_hue, 255, 255])
@@ -41,7 +40,7 @@ def process_image(image, lower_bound):
                 # Нарисуем точку в центре области с цветом, соответствующим диапазону
                 cv2.circle(image, (cX, cY), 5, color, -1)
 
-        return image
+    return image
 
 def main():
     # Заголовок
