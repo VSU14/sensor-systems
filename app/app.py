@@ -1,69 +1,70 @@
 import streamlit as st
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
 
-from typing import List
-
-
-FUNCTIONAL_GROUPS = ["OH", "NH2", "COOH", "CH3", "SH", "NH", "CO"]
-
-
-def evaluate_match(lock: List[str], key: List[str]):
-    match_score = sum(1 for group in key if group in lock)
+# Функция для обработки изображения и отображения точек
+def process_image(image, lower_bound):
+    # Преобразование изображения в HSV
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
     
-    return match_score
+    min_saturation = 100
+    min_value = 50  
 
+    total_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
 
-st.set_page_config(
-    page_title="Главная",
-    page_icon="👋",
-)
+    ranges = [
+        (lower_bound, 120, (0, 0, 0))
+    ]
 
-st.markdown("""
-### Поиск оптимальных совпадений «ключ-замок» по реперным группам
+    for min_hue, max_hue, color in ranges:
+        lower = np.array([min_hue, min_saturation, min_value])
+        upper = np.array([max_hue, 255, 255])
 
-#### Описание
-В данном приложении предлагается выполнить поиск наилучшего совпадения между молекулой (замком) и лигандами (ключами) на основе их функциональных групп. 
+        # Создание маски для текущего диапазона оттенков
+        mask = cv2.inRange(hsv, lower, upper)
 
-#### Задача
-Модель «ключ-замок» иллюстрирует, как функциональные группы различных молекул взаимодействуют друг с другом. Задача — выбрать функциональные группы для ключей (лигандов) и найти тот, который лучше всего подходит к заданному замку (молекуле белка).
+        # Объединяем маски
+        total_mask = cv2.bitwise_or(total_mask, mask)
 
-#### Ответ
-Система оценивает совпадение по количеству общих функциональных групп и выводит наиболее подходящий ключ (лиганд).
-""")
+        # Поиск контуров для текущей маски
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-lock = st.multiselect(label="Выберите замок (белок)", options=FUNCTIONAL_GROUPS, default=[FUNCTIONAL_GROUPS[0], FUNCTIONAL_GROUPS[1]])
+        # Нарисуем центры найденных областей с соответствующим цветом
+        for contour in contours:
+            # Находим моменты контура для определения центра масс
+            M = cv2.moments(contour)
+            if M["m00"] != 0:
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+                # Нарисуем точку в центре области с цветом, соответствующим диапазону
+                cv2.circle(image, (cX, cY), 5, color, -1)
 
-col1, col2 = st.columns(2, gap="medium")
+        return image
 
-with col1:
-    num_keys = st.number_input(label="Выберите количество ключей", min_value=1, max_value=5)
-
-with col2:    
-    group_size = st.number_input(label="Выберите размер группы", min_value=1, max_value=len(lock), value=len(lock))
-
-
-with st.container():
-    st.markdown(f"Выберите по **{group_size}** функциональные группы для ключей (лигандов):")
-    if num_keys != "":
-        num_keys = int(num_keys)
-
-        keys = []
-        for i in range(num_keys):
-            key = st.multiselect(f"Ключ **{i + 1}**", FUNCTIONAL_GROUPS, key=f"key_{i}", max_selections=group_size)
-            keys.append(key)
-
-    if st.button(label="Рассчитать совпадения", use_container_width=True):
-        best_score = -1
+def main():
+    # Заголовок
+    st.title("Детектор оттенков на тепловой карте")
+    
+    # Загружаем изображение
+    uploaded_image = st.file_uploader("Загрузите изображение", type=["png", "jpg", "jpeg"])
+    
+    if uploaded_image is not None:
+        file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=np.uint8)
+    
+        # Decode the NumPy array into an OpenCV image
+        image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         
-        for i, key in enumerate(keys):
-            score = evaluate_match(lock, key)
-            
-            if score > best_score:
-                best_score = score
-                best_key = key
+        # Отображаем изображение
+        st.image(image, caption="Исходное изображение", use_container_width=True)
 
-        # Выводим лучший ключ
-        st.markdown(f"Лучший ключ: **{', '.join(best_key)}** со степенью похожести: **{best_score}**")
+        # Вводим порог для яркости
+        threshold = st.slider("Порог яркости (чем ниже, тем больше точек)", min_value=0, max_value=119, step=1)
 
+        st.image(cv2.cvtColor(process_image(image, threshold), cv2.COLOR_BGR2RGB), caption="Выходное изображение", use_container_width=True)
+        
 
-
-
+# Запуск приложения
+if __name__ == "__main__":
+    main()
