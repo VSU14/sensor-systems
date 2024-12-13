@@ -13,7 +13,7 @@ def process_image(image, lower_bound):
     min_value = 0  
 
     ranges = [
-        (lower_bound + k, 120, (0, 0, 0)) for k in range(0, 120 - lower_bound, 2)
+        (lower_bound + k, 120, (0, 0, 0)) for k in range(0, 120 - lower_bound, 1)
     ][::-1]
 
     total_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)    
