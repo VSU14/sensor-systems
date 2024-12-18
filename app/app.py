@@ -1,69 +1,75 @@
-import streamlit as st
+import gradio as gr
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 from PIL import Image
 
-# Функция для обработки изображения и отображения точек
-def process_image(image, lower_bound):
-    # Преобразование изображения в HSV
+def detect_points_on_heatmap(image, brightness_threshold):
+    # Convert the image to HSV color space
     hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-    
-    min_saturation = 0
-    min_value = 0  
 
-    ranges = [
-        (lower_bound + k, 120, (0, 0, 0)) for k in range(0, 120 - lower_bound, 1)
+    min_saturation = 0
+    min_value = 0
+
+    # Create ranges for hue detection
+    hue_ranges = [
+        (brightness_threshold + offset, 120, (0, 0, 0)) 
+        for offset in range(0, 120 - brightness_threshold, 1)
     ][::-1]
 
-    total_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)    
-    for min_hue, max_hue, color in ranges:
-        lower = np.array([min_hue, min_saturation, min_value])
-        upper = np.array([max_hue, 255, 255])
+    combined_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
 
-        # Создание маски для текущего диапазона оттенков
-        mask = cv2.inRange(hsv, lower, upper)
+    for min_hue, max_hue, color in hue_ranges:
+        lower_bound = np.array([min_hue, min_saturation, min_value])
+        upper_bound = np.array([max_hue, 255, 255])
 
-        # Объединяем маски
-        total_mask = cv2.bitwise_or(total_mask, mask)
+        # Create a mask for the current hue range
+        mask = cv2.inRange(hsv, lower_bound, upper_bound)
 
-        # Поиск контуров для текущей маски
-        contours, _ = cv2.findContours(total_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Combine masks
+        combined_mask = cv2.bitwise_or(combined_mask, mask)
 
-        # Нарисуем центры найденных областей с соответствующим цветом
+        # Find contours for the current mask
+        contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Draw centers of detected areas with corresponding colors
         for contour in contours:
-            # Находим моменты контура для определения центра масс
-            M = cv2.moments(contour)
-            if M["m00"] != 0:
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-                # Нарисуем точку в центре области с цветом, соответствующим диапазону
-                cv2.circle(image, (cX, cY), 5, color, -1)
+            # Calculate the moments of the contour to find the center of mass
+            moments = cv2.moments(contour)
+            if moments["m00"] != 0:
+                center_x = int(moments["m10"] / moments["m00"])
+                center_y = int(moments["m01"] / moments["m00"])
+                # Draw a circle at the center of the area
+                cv2.circle(image, (center_x, center_y), 5, color, -1)
 
     return image
 
+def process_image(image, brightness_threshold):
+    # Convert Gradio Image object to numpy array
+    # image_np = np.array(image)
+
+    image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+    # Process the image
+    processed_image_np = detect_points_on_heatmap(image_bgr, brightness_threshold)
+
+    # Convert processed image back to PIL format
+    # processed_image = Image.fromarray(cv2.cvtColor(processed_image_np, cv2.COLOR_BGR2RGB))
+    return cv2.cvtColor(processed_image_np, cv2.COLOR_BGR2RGB)
+
 def main():
-    # Заголовок
-    st.title("Детектор оттенков на тепловой карте")
-    
-    # Загружаем изображение
-    uploaded_image = st.file_uploader("Загрузите изображение", type=["png", "jpg", "jpeg"])
-    
-    if uploaded_image is not None:
-        file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=np.uint8)
-    
-        # Decode the NumPy array into an OpenCV image
-        image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-        
-        # Отображаем изображение
-        st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), caption="Исходное изображение", use_container_width=True)
+    # Define the Gradio interface
+    interface = gr.Interface(
+        fn=process_image,
+        inputs=[
+            gr.Image(type="numpy", label="Upload Image"),
+            gr.Slider(minimum=0, maximum=119, value=60, label="Brightness Threshold")
+        ],
+        outputs=gr.Image(type="numpy", label="Processed Image"),
+        title="Heatmap Point Detector",
+        description="Upload an image and adjust the brightness threshold to detect points on a heatmap."
+    )
 
-        # Вводим порог для яркости
-        threshold = st.slider("Порог яркости (чем ниже, тем больше точек)", min_value=0, max_value=119, step=1)
+    interface.launch()
 
-        st.image(cv2.cvtColor(process_image(image, threshold), cv2.COLOR_BGR2RGB), caption="Выходное изображение", use_container_width=True)
-        
-
-# Запуск приложения
 if __name__ == "__main__":
     main()
