@@ -1,3 +1,4 @@
+import random
 import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
@@ -20,6 +21,13 @@ def example_func(scale: int, loc: int) -> float:
     return tmp
 
 
+def another_example_func(scale: int, loc: int) -> float:
+    def tmp(x: np.ndarray) -> np.ndarray:
+        return np.log(x * scale + loc)
+
+    return tmp
+
+
 def generate_data(dim: int, num_points: int) -> np.ndarray:
     np.random.seed(42)
     
@@ -29,7 +37,10 @@ def generate_data(dim: int, num_points: int) -> np.ndarray:
 
     x = np.arange(num_points)
     for coef in coefficients:
-        f = example_func(*coef)
+        if random.random() < 0.5:
+            f = example_func(*coef)
+        else:
+            f = another_example_func(*coef)
         
         data.append(f(x))
 
@@ -39,25 +50,22 @@ def generate_data(dim: int, num_points: int) -> np.ndarray:
     return data.T
 
 
-def generate_plot(y: np.ndarray, sensor_id: int):
+def generate_plot(y: np.ndarray, x: np.ndarray=None, title: str = None, xlabel: str = None, ylabel: str = None):
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    ax.plot(y)
-    ax.set_title(f"Сенсор #{sensor_id}")
+    if x is not None:
+        ax.plot(x, y)
+    else:
+        ax.plot(y)
     
-    ax.set_xlabel("Отсчеты")
-    ax.set_ylabel("Показатель")
-
-    return fig
-
-
-def generate_scatter(x: np.ndarray, y: np.ndarray):
-    fig, ax = plt.subplots(figsize=(12, 6))
-
-    ax.scatter(x, y)
+    if title is not None:
+        ax.set_title(title)
     
-    ax.set_xlabel("Y")
-    ax.set_ylabel("X")
+    if xlabel is not None:
+        ax.set_xlabel(xlabel)
+    
+    if ylabel is not None:
+        ax.set_ylabel(ylabel)
 
     return fig
 
@@ -82,11 +90,34 @@ if dim is not None and num_points is not None:
 sensor_id = st.selectbox(label="Выберите сенсор", options=[] if dim is None else list(range(dim)))
 
 if sensor_id is not None:
-    st.pyplot(generate_plot(data[:, sensor_id], sensor_id))
+    st.pyplot(
+        generate_plot(
+            y=data[:, sensor_id],
+            title=f"Сенсор #{sensor_id}",
+            xlabel="Время",
+            ylabel="Показатель"
+        )
+    )
 
 if st.button(label="Применить метод главных компонент", use_container_width=True):
     transformed_data = apply_pca(data)
 
     x, y = transformed_data[:, 0], transformed_data[:, 1]
 
-    st.pyplot(generate_scatter(x, y))
+    st.pyplot(
+        generate_plot(
+            y=x,
+            title="Первая компонента",
+            xlabel="Время",
+            ylabel="Показатель"
+        )
+    )
+
+    st.pyplot(
+        generate_plot(
+            y=y,
+            title="Вторая компонента",
+            xlabel="Время",
+            ylabel="Показатель"
+        )
+    )
